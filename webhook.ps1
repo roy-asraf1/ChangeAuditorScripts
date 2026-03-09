@@ -13,4 +13,4 @@ New-CAEventWebhookSubscription -Connection $connection -NotificationUrl $notific
 
 
 Get-CAEventWebhookSubscriptions -Connection $connection | Format-List
-Get-CAEventExportSubsystems -Connection $
+Get-CAEventExportSubsystems -Connection $connection | Select-Object DisplayName
