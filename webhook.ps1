@@ -4,6 +4,10 @@ $connection = Connect-CAClient
 
 #configuration
 $notificationUrl = "https:/domain/api/webhook"
+#$heartbeatUrl = ""
+#$authId = ""
+
+
 
 #what systems
 #$selectedSubsystems = Get-CAEventExportSubsystems -Connection $connection
@@ -12,5 +16,15 @@ New-CAEventWebhookSubscription -Connection $connection -NotificationUrl $notific
 
 
 
-Get-CAEventWebhookSubscriptions -Connection $connection | Format-List
+#Get-CAEventWebhookSubscriptions -Connection $connection | Format-List
+New-CAEventWebhookSubscription -Connection $connection `
+                               -NotificationUrl $notificationUrl `
+                               -Subsystems $selectedSubsystems `
+                               -HeartbeatUrl $heartbeatUrl `
+                               -AuthorizationId $authId `
+                               -BatchSize 10000
+
 Get-CAEventExportSubsystems -Connection $connection | Select-Object DisplayName
+
+#Test
+#Get-CAEventWebhookSubscriptions -Connection $connection | Format-List
