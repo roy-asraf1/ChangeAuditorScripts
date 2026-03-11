@@ -7,7 +7,7 @@ $notificationUrl = "https:/domain/api/webhook"
 #$heartbeatUrl = ""
 #$authId = ""
 
-
+netstat -abn | findstr ChangeAuditor
 
 #what systems
 #$selectedSubsystems = Get-CAEventExportSubsystems -Connection $connection
