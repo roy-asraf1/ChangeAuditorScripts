@@ -1,45 +1,56 @@
-# 1. Load Module
-$modulePath = "C:\Program Files\Quest\ChangeAuditor\Client\ChangeAuditor.PowerShell.dll"
-if (!(Get-Module -Name Quest.ChangeAuditor.PowerShell)) { Import-Module $modulePath }
+# 1. Load the Change Auditor module
+Import-Module "C:\Program Files\Quest\ChangeAuditor\Client\ChangeAuditor.PowerShell.dll"
 
-# 2. Connect (Using a Retry logic or ensuring it's fresh)
-$connection = Connect-CAClient -ComputerName "192.168.1.10" -Port 61023
+# 2. Connect to the system
+$connection = Connect-CAClient 
 
-# 3. Cleanup existing ones
-Write-Host "Cleaning up old subscriptions..." -ForegroundColor Cyan
-Get-CAEventWebhookSubscriptions -Connection $connection | Remove-CAEventWebhookSubscription -Connection $connection
-
-# 4. Target Variables
-$notificationUrl = "https://1ea59b9b-7376-4ac0-a120-03c5378c0f29.mock.pstmn.io/webhook"
-$myToken = "Bearer TEST_TOKEN_123"
-
-# 5. Select Subsystems (FIXED SYNTAX: Using -in instead of -eq for multiple values)
-$subsystemNames = @("Active Directory", "Change Auditor")
-$selectedSubsystems = Get-CAEventExportSubsystems -Connection $connection | Where-Object DisplayName -in $subsystemNames
-
-# Check if we actually found the subsystems before continuing
-if ($null -eq $selectedSubsystems) {
-    Write-Error "Could not find subsystems! Check your connection to the Coordinator."
+$search = Get-CASearches $connection | Where-Object { $_.Name -eq "All Events" }
+if ($null -eq $search) {
+    Write-Error "Search query '$searchName' was not found in Change Auditor."
     return
 }
+$events = Invoke-CASearch -Connection $connection -Search $search -Limit 10
 
-# 6. Create Subscription
-Write-Host "Creating new subscription for: $($subsystemNames -join ', ')" -ForegroundColor Green
-$newSub = New-CAEventWebhookSubscription -Connection $connection `
-    -NotificationUrl $notificationUrl `
-    -Subsystems $selectedSubsystems `
-    -BatchSize 1
-
-# 7. Apply Authorization
-if ($newSub) {
-    Write-Host "Injecting Authorization Token..." -ForegroundColor Green
-    Set-CAEventWebhookSubscription -Connection $connection `
-        -SubscriptionId $newSub.Id `
-        -AuthorizationId $myToken
+$apiUrl = "https://maccabident-itom-dev.onbmc.com/events-service/api/v1.0/events"
+$headers = @{
+    "Authorization" = "apiKey 779383581::TU1098DLNYI37FD6EHF25CR7E17JXK::sdFfOcDtzNzJZEwiEZnqSz64mqhSDbFfpAwwrvxUTWATXyQj7M"
+    "Content-Type"  = "application/json"
 }
 
-# 8. Final Verification
-Write-Host "Final Configuration Summary:" -ForegroundColor Yellow
-Get-CAEventWebhookSubscriptions -Connection $connection | Format-List Id, NotificationUrl, Enabled, EventsSent, AuthorizationId
 
-Get-CAEventWebhookSubscriptions -Connection $connection | Where-Object Id -eq "0b341fcf-9f6b-4b06-901c-e275153fc862" | Select-Object Id, AuthorizationId
+[System.Net.WebRequest]::DefaultWebProxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
+
+# 3. Loop through each of the returned events
+foreach ($event in $events) {
+    $payloadObjects = @{
+		    class		   = "MX_EVENT"
+            object         = "Change Auditor"
+            msg            = "testtttt"
+            severity       = "CRITICAL"
+            mx_var1    	   = $event.TimeDetected
+            mx_var2        = $event.User
+            mx_var3        = $event.Workstation
+            source_identifier="questtest"
+        } | ConvertTo-Json 
+    $payload = "[$payloadObjects]"
+    $payload
+
+    try {
+        # Send the POST request to BMC (Removed the problematic flag from the end of this line)
+        $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $headers -Body $payload
+        Write-Host "Successfully sent event: $($event.EventMessage)"
+    }
+    catch {
+        if ($_.Exception.Response) {
+            $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+            $reader.BaseStream.Position = 0
+            $responseBody = $reader.ReadToEnd()
+            Write-Host "BMC API Error Details: $responseBody" -ForegroundColor Red
+        } else {
+            Write-Host "Error: $_" -ForegroundColor Red
+        }
+    }
+}
+
+# 4. Safely disconnect from the system
+#Disconnect-CAClient $connection
