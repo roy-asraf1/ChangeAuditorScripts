@@ -13,7 +13,7 @@ Start-Sleep -Seconds 10
 # This command connects locally and adds your Windows user to the sysadmin group
 Write-Host "Granting sysadmin permissions..."
 sqlcmd -E -S . -Q "CREATE LOGIN [LAB\Administrator] FROM WINDOWS; ALTER SERVER ROLE sysadmin ADD MEMBER [LAB\Administrator];"
-
+#---------------------------------------------------------------------------------------
 # 4. Terminate the Single-User process and restart the service normally
 Write-Host "Restarting SQL Server service..."
 Get-Process sqlservr -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -22,3 +22,5 @@ Start-Service MSSQLSERVER
 
 # 5. Finished
 Write-Host "Process complete. You should now be able to log in to SSMS with sysadmin rights."
+
+
